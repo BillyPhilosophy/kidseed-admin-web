@@ -18,7 +18,9 @@ export default {
       component: () => import("@/views/welcome/index.vue"),
       meta: {
         title: "首页",
-        showLink: VITE_HIDE_HOME === "true" ? false : true
+        showLink: VITE_HIDE_HOME === "true" ? false : true,
+        // 单角色管理后台：仅 ADMIN 可见可访问
+        roles: ["ADMIN"]
       }
     }
   ]

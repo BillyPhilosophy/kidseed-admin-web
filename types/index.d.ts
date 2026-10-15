@@ -60,6 +60,8 @@ interface WheelEvent {
 }
 
 interface ImportMetaEnv extends ViteEnv {
+  /** API 基础地址：生产环境完整 URL（如 `https://api.twilightknight.space`），开发环境留空走同源代理 */
+  VITE_API_BASE: string;
   __: unknown;
 }
 

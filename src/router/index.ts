@@ -2,6 +2,7 @@
 import Cookies from "js-cookie";
 import { getConfig } from "@/config";
 import NProgress from "@/utils/progress";
+import { message } from "@/utils/message";
 import { buildHierarchyTree } from "@/utils/tree";
 import remainingRouter from "./modules/remaining";
 import { useMultiTagsStoreHook } from "@/store/modules/multiTags";
@@ -148,6 +149,13 @@ router.beforeEach((to: ToRouteType, _from, next) => {
     whiteList.includes(to.fullPath) ? next(_from.fullPath) : next();
   }
   if (Cookies.get(multipleTabsKey) && userInfo) {
+    // 本项目为单角色管理后台：登录态中不含 ADMIN 角色时，清空登录态、回登录页并提示
+    if (!userInfo.roles?.includes("ADMIN")) {
+      message("该账号无管理后台权限", { type: "error" });
+      removeToken();
+      next({ path: "/login" });
+      return;
+    }
     // 无权限跳转403页面
     if (to.meta?.roles && !isOneOfArray(to.meta?.roles, userInfo?.roles)) {
       next({ path: "/error/403" });

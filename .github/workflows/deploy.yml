@@ -1,0 +1,39 @@
+name: Build and Deploy to Raspberry Pi
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # package.json 未声明 packageManager 字段，显式指定版本（engines 要求 pnpm>=9）
+          version: 9
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build
+        run: pnpm build
+      - name: Install sshpass and rsync
+        run: sudo apt-get update && sudo apt-get install -y sshpass rsync
+      - name: Deploy dist to Raspberry Pi
+        env:
+          SSHPASS: ${{ secrets.PI_SSH_PASSWORD }}
+        run: |
+          sshpass -e rsync -avz --delete \
+            -e "ssh -p ${{ secrets.PI_SSH_PORT }} -o StrictHostKeyChecking=no" \
+            ./dist/ \
+            ${{ secrets.PI_SSH_USER }}@${{ secrets.PI_SSH_HOST }}:${{ secrets.PI_DEPLOY_PATH }}/

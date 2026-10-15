@@ -18,7 +18,7 @@ import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
 import dayIcon from "@/assets/svg/day.svg?component";
 import darkIcon from "@/assets/svg/dark.svg?component";
 import Lock from "~icons/ri/lock-fill";
-import User from "~icons/ri/user-3-fill";
+import Mail from "~icons/ri/mail-fill";
 
 defineOptions({
   name: "Login"
@@ -37,8 +37,8 @@ dataThemeChange(overallStyle.value);
 const { title } = useNav();
 
 const ruleForm = reactive({
-  username: "admin",
-  password: "admin123"
+  email: "",
+  password: ""
 });
 
 const onLogin = async (formEl: FormInstance | undefined) => {
@@ -47,25 +47,31 @@ const onLogin = async (formEl: FormInstance | undefined) => {
     if (valid) {
       loading.value = true;
       useUserStoreHook()
-        .loginByUsername({
-          username: ruleForm.username,
+        .loginByEmail({
+          email: ruleForm.email,
           password: ruleForm.password
         })
-        .then(res => {
-          if (res.success) {
-            // 获取后端路由
-            return initRouter().then(() => {
-              disabled.value = true;
-              router
-                .push(getTopMenu(true).path)
-                .then(() => {
-                  message("登录成功", { type: "success" });
-                })
-                .finally(() => (disabled.value = false));
-            });
-          } else {
-            message("登录失败", { type: "error" });
+        .then(userInfo => {
+          // 单角色管理后台：非管理员账号直接清登录态并提示（路由守卫同样兜底拦截）
+          if (userInfo.role !== "ADMIN") {
+            message("该账号无管理后台权限", { type: "error" });
+            useUserStoreHook().logOut();
+            return;
           }
+          // 获取后端路由
+          return initRouter().then(() => {
+            disabled.value = true;
+            router
+              .push(getTopMenu(true).path)
+              .then(() => {
+                message("登录成功", { type: "success" });
+              })
+              .finally(() => (disabled.value = false));
+          });
+        })
+        .catch(error => {
+          // 后端错误信息已在 http 层归一化到 error.message（如：邮箱或密码错误）
+          message(error?.message ?? "登录失败", { type: "error" });
         })
         .finally(() => (loading.value = false));
     }
@@ -119,21 +125,12 @@ useEventListener(document, "keydown", ({ code }) => {
             size="large"
           >
             <Motion :delay="100">
-              <el-form-item
-                :rules="[
-                  {
-                    required: true,
-                    message: '请输入账号',
-                    trigger: 'blur'
-                  }
-                ]"
-                prop="username"
-              >
+              <el-form-item prop="email">
                 <el-input
-                  v-model="ruleForm.username"
+                  v-model="ruleForm.email"
                   clearable
-                  placeholder="账号"
-                  :prefix-icon="useRenderIcon(User)"
+                  placeholder="邮箱"
+                  :prefix-icon="useRenderIcon(Mail)"
                 />
               </el-form-item>
             </Motion>

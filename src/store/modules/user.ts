@@ -8,19 +8,26 @@ import {
   storageLocal
 } from "../utils";
 import {
-  type UserResult,
-  type RefreshTokenResult,
-  getLogin,
-  refreshTokenApi
+  type LoginParams,
+  type RefreshTokenParams,
+  type TokenResult,
+  type UserInfoResult,
+  loginApi,
+  logoutApi,
+  refreshTokenApi,
+  getUserInfoApi
 } from "@/api/user";
 import { useMultiTagsStoreHook } from "./multiTags";
 import { type DataInfo, setToken, removeToken, userKey } from "@/utils/auth";
+
+/** 后端`accessToken`有效期为 2 小时（后端不下发过期时间，本地据此推算） */
+const ACCESS_TOKEN_EXPIRES_IN = 2 * 60 * 60 * 1000;
 
 export const useUserStore = defineStore("pure-user", {
   state: (): userType => ({
     // 头像
     avatar: storageLocal().getItem<DataInfo<number>>(userKey)?.avatar ?? "",
-    // 用户名
+    // 用户名（记录登录邮箱）
     username: storageLocal().getItem<DataInfo<number>>(userKey)?.username ?? "",
     // 昵称
     nickname: storageLocal().getItem<DataInfo<number>>(userKey)?.nickname ?? "",
@@ -63,22 +70,45 @@ export const useUserStore = defineStore("pure-user", {
     SET_LOGINDAY(value: number) {
       this.loginDay = Number(value);
     },
-    /** 登入 */
-    async loginByUsername(data) {
-      return new Promise<UserResult>((resolve, reject) => {
-        getLogin(data)
-          .then(data => {
-            if (data?.success) setToken(data.data);
-            resolve(data);
-          })
-          .catch(error => {
-            reject(error);
-          });
+    /**
+     * 登入（邮箱+密码）
+     * 流程：`POST /v1/auth/login`换双令牌 → 先存令牌 → `GET /v1/users/me`拉用户信息 → 写入角色
+     */
+    async loginByEmail(data: LoginParams): Promise<UserInfoResult> {
+      const tokenInfo = await loginApi(data);
+      const expires = new Date(Date.now() + ACCESS_TOKEN_EXPIRES_IN);
+      // 先持久化令牌，保证拉取用户信息时请求能携带 Authorization
+      setToken({ ...tokenInfo, expires });
+      const userInfo = await getUserInfoApi();
+      // 再写入用户信息：username 记录邮箱，roles 适配模板的角色数组机制
+      setToken({
+        ...tokenInfo,
+        expires,
+        username: userInfo.email,
+        nickname: userInfo.nickname,
+        roles: [userInfo.role],
+        permissions: []
       });
+      return userInfo;
     },
-    /** 前端登出（不调用接口） */
-    logOut() {
+    /**
+     * 退出登录：先调`POST /v1/auth/logout`让服务端吊销`refreshToken`
+     * （接口失败也照常清理本地登录态），然后清空登录态并回登录页
+     */
+    async logOut() {
+      try {
+        await logoutApi();
+      } catch {
+        // 登出接口失败（如`token`已失效）不影响本地清理
+      } finally {
+        this.clearLoginState();
+      }
+    },
+    /** 清空本地登录态并回登录页（退出登录、刷新令牌失效时共用） */
+    clearLoginState() {
+      this.avatar = "";
       this.username = "";
+      this.nickname = "";
       this.roles = [];
       this.permissions = [];
       removeToken();
@@ -86,20 +116,17 @@ export const useUserStore = defineStore("pure-user", {
       resetRouter();
       router.push("/login");
     },
-    /** 刷新`token` */
-    async handRefreshToken(data) {
-      return new Promise<RefreshTokenResult>((resolve, reject) => {
-        refreshTokenApi(data)
-          .then(data => {
-            if (data) {
-              setToken(data.data);
-              resolve(data);
-            }
-          })
-          .catch(error => {
-            reject(error);
-          });
+    /**
+     * 刷新`token`（`POST /v1/auth/refresh`，双令牌轮换，旧`refreshToken`调用后作废）
+     * 用户信息（`username`/`roles`等）由`setToken`从本地存储中保留
+     */
+    async handRefreshToken(data: RefreshTokenParams): Promise<TokenResult> {
+      const tokenInfo = await refreshTokenApi(data);
+      setToken({
+        ...tokenInfo,
+        expires: new Date(Date.now() + ACCESS_TOKEN_EXPIRES_IN)
       });
+      return tokenInfo;
     }
   }
 });

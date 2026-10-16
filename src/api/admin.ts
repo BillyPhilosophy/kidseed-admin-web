@@ -12,9 +12,6 @@ export type Track = "CHINESE" | "ENGLISH" | "MATH" | "GENERAL";
 /** 版本状态枚举（DRAFT --送审--> REVIEWING --发布--> PUBLISHED；打回回到 DRAFT；旧在线自动归档 ARCHIVED） */
 export type VersionStatus = "DRAFT" | "REVIEWING" | "PUBLISHED" | "ARCHIVED";
 
-/** TTS 发音人枚举 */
-export type TtsVoice = "zh-CN-XiaoxiaoNeural" | "en-US-AnaNeural";
-
 /** 版本摘要（课程树/课程详情内嵌） */
 export interface VersionSummary {
   /** 版本 id（uuid） */
@@ -136,26 +133,102 @@ export interface VersionContentResult extends VersionDetail {
   content: unknown;
 }
 
-/** TTS 试听请求参数（`POST /tts/audition`） */
+/* ============================== TTS 试听台（/v1/admin/tools 前缀） ============================== */
+
+/** 场景声引擎能力元信息（`GET /tools/tts/voices` 响应内嵌 `soundscape` 字段） */
+export interface SoundscapeMeta {
+  /** 场景声引擎 id */
+  engine: string;
+  /** 单次生成最长秒数 */
+  maxSeconds: number;
+  /** prompt 最大字符数 */
+  maxPromptChars: number;
+  /** 速率限制（次/秒） */
+  rps: number;
+}
+
+/** TTS 音色目录项（`GET /tools/tts/voices` 响应 `voices` 数组元素） */
+export interface TtsVoiceInfo {
+  /** 逻辑角色 id（试听请求的 voice 字段用它） */
+  id: string;
+  /** 合成引擎（qwen3-tts-flash / qwen-audio-3.1-tts-flash 等） */
+  engine: string;
+  /** 引擎侧发音人名 */
+  qwenVoice: string;
+  /** 角色显示名 */
+  name: string;
+  /** 性别（female/male 等） */
+  gender: string;
+  /** 年龄段（adult/child 等） */
+  age: string;
+  /** 支持语言列表 */
+  languages: string[];
+  /** 角色标签 */
+  tags: string[];
+  /** 角色描述 */
+  description: string;
+  /** 是否主要角色（主要角色在下拉中置顶分组） */
+  primary: boolean;
+  /** instruction 输入提示语（仅 qwen-audio-3.1-tts-flash 引擎有意义） */
+  instructionHint?: string;
+}
+
+/** TTS 音色目录返回（`GET /tools/tts/voices`） */
+export interface TtsVoicesResult {
+  /** 全部音色 */
+  voices: TtsVoiceInfo[];
+  /** 主要角色 id 列表 */
+  primaryIds: string[];
+  /** 场景声引擎能力元信息 */
+  soundscape: SoundscapeMeta;
+}
+
+/** TTS 试听请求参数（`POST /tools/tts/audition`） */
 export interface AuditionParams {
   /** 试听文本（1~30 字） */
   text: string;
-  /** 发音人 */
-  voice: TtsVoice;
+  /** 音色 id（目录接口返回的逻辑角色 id） */
+  voice: string;
   /** 语速（-50~50 整数，默认 -15） */
   rate?: number;
+  /** 情感/语气指令（≤200 字，仅 qwen-audio-3.1-tts-flash 引擎支持） */
+  instruction?: string;
 }
 
-/** TTS 试听返回（字段名以后端实际为准，兼容取 url/audioUrl/data.url） */
+/** TTS 试听返回（`POST /tools/tts/audition`） */
 export interface AuditionResult {
-  /** 公网试听 URL（可能字段名） */
-  url?: string;
-  /** 公网试听 URL（可能字段名） */
-  audioUrl?: string;
-  /** 嵌套返回时的包装 */
-  data?: { url?: string };
-  /** 其余字段原样保留，拿不到 URL 时整体展示方便调试 */
-  [key: string]: unknown;
+  /** 可直接播放的公网 URL */
+  url: string;
+  /** 音频对象存储 key */
+  key: string;
+  /** 实际使用的音色 id */
+  voice: string;
+  /** 实际使用的语速 */
+  rate: number;
+  /** 音频字节数 */
+  bytes: number;
+  /** URL 有效天数 */
+  expiresInDays: number;
+  /** 音频 Content-Type（audio/mpeg / audio/wav） */
+  contentType?: "audio/mpeg" | "audio/wav";
+}
+
+/** 场景声生成请求参数（`POST /tools/tts/soundscape`） */
+export interface SoundscapeParams {
+  /** 场景描述（1~3000 字，时长写在描述里，如"时长约10秒"） */
+  prompt: string;
+}
+
+/** 场景声生成返回（`POST /tools/tts/soundscape`） */
+export interface SoundscapeResult {
+  /** 可直接播放的公网 URL */
+  url: string;
+  /** 音频对象存储 key */
+  key: string;
+  /** 音频字节数 */
+  bytes: number;
+  /** URL 有效天数 */
+  expiresInDays: number;
 }
 
 /** LLM 连通性自检返回（`GET /llm/ping`，永远 200） */
@@ -281,13 +354,28 @@ export const rollbackLessonApi = (lessonId: string, versionId: string) => {
   );
 };
 
-/* ============================== 工具 ============================== */
+/* ============================== 工具（/v1/admin/tools 前缀） ============================== */
+
+/** TTS 音色目录（含场景声引擎能力元信息） */
+export const getTtsVoicesApi = () => {
+  return http.request<TtsVoicesResult>("get", "/v1/admin/tools/tts/voices");
+};
 
 /** TTS 合成试听（400=合成失败） */
 export const ttsAuditionApi = (data: AuditionParams) => {
-  return http.request<AuditionResult>("post", "/v1/admin/tts/audition", {
+  return http.request<AuditionResult>("post", "/v1/admin/tools/tts/audition", {
     data
   });
+};
+
+/** 场景声生成（生成耗时 15~30 秒，超时放宽到 90s） */
+export const ttsSoundscapeApi = (data: SoundscapeParams) => {
+  return http.request<SoundscapeResult>(
+    "post",
+    "/v1/admin/tools/tts/soundscape",
+    { data },
+    { timeout: 90000 }
+  );
 };
 
 /** LLM 连通性自检（永远 200） */

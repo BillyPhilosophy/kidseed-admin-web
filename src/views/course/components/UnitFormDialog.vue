@@ -5,7 +5,7 @@ import { message } from "@/utils/message";
 import type { Track, UnitNode } from "@/api/admin";
 import { createUnitApi, updateUnitApi } from "@/api/admin";
 import { trackOptions } from "../utils";
-import CoverUpload from "./CoverUpload.vue";
+import CoverUpload from "@/components/CoverUpload/index.vue";
 
 /** 单元新建/编辑弹窗：unit 为 null 时是新建，否则是编辑 */
 const props = defineProps<{

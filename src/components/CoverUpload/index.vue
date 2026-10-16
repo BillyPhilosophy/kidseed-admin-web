@@ -4,9 +4,9 @@ import type { UploadFile, UploadInstance } from "element-plus";
 import { message } from "@/utils/message";
 import { buildAssetUrl, mediaPresign, uploadFileToMinio } from "@/api/upload";
 
-/** 封面图片上传组件：v-model 绑定 MinIO 资源键（coverKey），空串 = 未设置 */
+/** 通用图片上传组件：v-model 绑定 MinIO 资源键（如封面 coverKey、头像 avatarKey），空串 = 未设置 */
 const props = defineProps<{
-  /** 封面 MinIO key */
+  /** 图片 MinIO key */
   modelValue: string;
 }>();
 
@@ -53,7 +53,7 @@ const handleFileChange = async (uploadFile: UploadFile) => {
     });
     await uploadFileToMinio(presign, file);
     emit("update:modelValue", presign.key);
-    message("封面上传成功", { type: "success" });
+    message("图片上传成功", { type: "success" });
   } catch (error: any) {
     // presign 走 http 封装，error.message 已是后端中文提示；PUT 直传失败为「上传失败: HTTP xxx」
     message(error?.message ?? "上传失败", { type: "error" });
@@ -65,7 +65,7 @@ const handleFileChange = async (uploadFile: UploadFile) => {
   }
 };
 
-/** 清除封面（回写空串，父组件提交时转为 undefined） */
+/** 清除图片（回写空串，由父组件决定如何落库，如头像清除传 null） */
 const handleClear = () => {
   emit("update:modelValue", "");
 };
@@ -73,7 +73,7 @@ const handleClear = () => {
 
 <template>
   <div v-loading="uploading" class="cover-upload">
-    <!-- 已有封面：缩略图（点击预览大图）+ key + 操作按钮 -->
+    <!-- 已有图片：缩略图（点击预览大图）+ key + 操作按钮 -->
     <div v-if="modelValue" class="cover-has">
       <el-image
         :src="previewUrl"
@@ -112,7 +112,7 @@ const handleClear = () => {
       </div>
     </div>
 
-    <!-- 无封面：拖拽 / 点击选择 -->
+    <!-- 无图片：拖拽 / 点击选择 -->
     <el-upload
       v-else
       ref="selectUploadRef"

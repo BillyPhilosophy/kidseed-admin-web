@@ -7,6 +7,8 @@ kidseed 儿童学习平台的管理后台。基于 [pure-admin-thin](https://git
 - **登录鉴权**：邮箱 + 密码登录，双 token（access/refresh）自动刷新；`ADMIN` / `EDITOR` 角色可访问，`PARENT` 登录提示无权限
 - **RBAC 权限**：`EDITOR`（内容编辑）可管理课程树与版本、送审、试听；**发布 / 打回 / 回滚仅 `ADMIN`**（按钮按 `v-perms` 不渲染，后端 Guard 双重拦截 403）；role → permissions 映射见 `src/constants/perms.ts`
 - **用户管理**（仅 ADMIN）：`/users` 用户列表检索、在线修改角色（修改后对方登录状态失效需重登，不能改自己）
+- **品牌与首页**：KidSeed 绿芽 logo（AI 生成，`public/logo.png`）+ 中文站点名，PureAdmin 字样全清理；首页为工作台（问候卡 + 基于课程树接口聚合的统计卡 + 快捷入口）
+- **个人信息页**：`/profile` 头像上传（复用 MinIO 直传链路）、改昵称、改密码（改密成功强制重新登录）；从导航栏用户下拉进入
 - **课程树管理**：单元 / 课程 CRUD，单元封面上传（presign → PUT 直传 MinIO）、课程树缩略图预览；课程内容版本管理（草稿 → 提交 → 审核 / 发布 → 回滚的状态机操作）
 - **工具箱**（仅 ADMIN）：TTS 试听、LLM 连通性自检
 
@@ -70,8 +72,10 @@ location / {
 
 ## 目录结构
 
-- `src/api` — 后端接口封装（`admin.ts` 管理端接口、`user.ts` 登录 / 用户信息、`upload.ts` 媒体预签名与 MinIO 直传），页面只从这里调接口
-- `src/views/course` — 课程树管理页（单元 / 课程表单、`CoverUpload` 封面上传、版本内容与预览等弹窗组件）
+- `src/api` — 后端接口封装（`admin.ts` 管理端接口、`user.ts` 登录 / 用户信息 / 个人资料、`upload.ts` 媒体预签名与 MinIO 直传），页面只从这里调接口
+- `src/views/course` — 课程树管理页（单元 / 课程表单、版本内容与预览等弹窗组件）
+- `src/components/CoverUpload` — 通用图片上传组件（单元封面、用户头像共用）
+- `src/views/profile` — 个人信息页（头像 / 昵称 / 改密码）
 - `src/views/users` — 用户管理页（仅 ADMIN，在线修改角色）
 - `src/views/tools` — 工具箱页（TTS 试听、LLM 自检，仅 ADMIN）
 - `src/router/modules` — 路由模块（`course.ts`、`tools.ts`、`users.ts`、`home.ts` 等，`meta.roles` 控制可见可访问）

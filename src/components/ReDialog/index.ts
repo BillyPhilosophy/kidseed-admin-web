@@ -52,9 +52,7 @@ const closeAllDialog = () => {
 };
 
 /** 千万别忘了在下面这三处引入并注册下，放心注册，不使用`addDialog`调用就不会被挂载
- * https://github.com/pure-admin/vue-pure-admin/blob/main/src/App.vue#L4
- * https://github.com/pure-admin/vue-pure-admin/blob/main/src/App.vue#L12
- * https://github.com/pure-admin/vue-pure-admin/blob/main/src/App.vue#L22
+ * 需在入口文件三处引入并注册（参考模板入口 App.vue 的注册方式）
  */
 const ReDialog = withInstall(reDialog);
 

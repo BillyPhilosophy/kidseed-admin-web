@@ -11,7 +11,7 @@ import type { FormInstance } from "element-plus";
 import { useLayout } from "@/layout/hooks/useLayout";
 import { useUserStoreHook } from "@/store/modules/user";
 import { initRouter, getTopMenu } from "@/router/utils";
-import { bg, avatar, illustration } from "./utils/static";
+import { bg, illustration } from "./utils/static";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
 
@@ -113,9 +113,12 @@ useEventListener(document, "keydown", ({ code }) => {
       </div>
       <div class="login-box">
         <div class="login-form">
-          <avatar class="avatar" />
+          <img src="/logo.png" class="avatar" alt="KidSeed logo" />
           <Motion>
             <h2 class="outline-hidden">{{ title }}</h2>
+          </Motion>
+          <Motion :delay="50">
+            <p class="login-subtitle">孩子内容，用心管理</p>
           </Motion>
 
           <el-form
@@ -173,5 +176,29 @@ useEventListener(document, "keydown", ({ code }) => {
 <style lang="scss" scoped>
 :deep(.el-input-group__append, .el-input-group__prepend) {
   padding: 0;
+}
+
+/* 品牌 logo 为方形图标，覆盖 login.css 中针对宽横幅 svg 的尺寸 */
+.avatar {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
+}
+
+.login-form h2 {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 28px;
+  color: var(--el-text-color-primary);
+  text-transform: none;
+  letter-spacing: 1px;
+}
+
+.login-subtitle {
+  margin: -6px 0 18px;
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+  letter-spacing: 4px;
 }
 </style>

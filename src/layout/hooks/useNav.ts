@@ -121,9 +121,9 @@ export function useNav() {
     return remainingPaths.includes(path);
   }
 
-  /** 获取`logo` */
+  /** 获取`logo`（public 目录下的品牌图标） */
   function getLogo() {
-    return new URL("/logo.svg", import.meta.url).href;
+    return new URL("/logo.png", import.meta.url).href;
   }
 
   return {

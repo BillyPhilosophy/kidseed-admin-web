@@ -55,8 +55,26 @@ export interface UserInfoResult {
   nickname: string;
   /** 平台角色 */
   role: UserRole;
+  /** 头像 MinIO key（未设置时为 null，展示用`buildAssetUrl('image', key)`拼接） */
+  avatarKey: string | null;
   /** 孩子档案列表 */
   children: Array<ChildProfile>;
+}
+
+/** 更新当前用户资料请求参数（`PATCH /v1/users/me`；`avatarKey`传`null`表示清除头像） */
+export interface UpdateMeParams {
+  /** 昵称（1~32 字） */
+  nickname?: string;
+  /** 头像 MinIO key；传`null`清除头像 */
+  avatarKey?: string | null;
+}
+
+/** 修改密码请求参数（`PATCH /v1/auth/password`） */
+export interface ChangePasswordParams {
+  /** 旧密码 */
+  oldPassword: string;
+  /** 新密码（8~72 位） */
+  newPassword: string;
 }
 
 /** 登录 */
@@ -77,4 +95,14 @@ export const logoutApi = () => {
 /** 获取当前登录用户信息（需携带`token`） */
 export const getUserInfoApi = () => {
   return http.request<UserInfoResult>("get", "/v1/users/me");
+};
+
+/** 更新当前用户资料（昵称/头像；返回结构与`GET /v1/users/me`一致） */
+export const updateMeApi = (data: UpdateMeParams) => {
+  return http.request<UserInfoResult>("patch", "/v1/users/me", { data });
+};
+
+/** 修改密码（401=旧密码错误；成功后服务端吊销令牌，需重新登录） */
+export const changePasswordApi = (data: ChangePasswordParams) => {
+  return http.request<{ ok: boolean }>("patch", "/v1/auth/password", { data });
 };

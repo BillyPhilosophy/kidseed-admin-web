@@ -17,6 +17,7 @@ import {
   refreshTokenApi,
   getUserInfoApi
 } from "@/api/user";
+import { buildAssetUrl } from "@/api/upload";
 import { useMultiTagsStoreHook } from "./multiTags";
 import { getPermsByRole } from "@/constants/perms";
 import { type DataInfo, setToken, removeToken, userKey } from "@/utils/auth";
@@ -88,17 +89,40 @@ export const useUserStore = defineStore("pure-user", {
       setToken({ ...tokenInfo, expires });
       const userInfo = await getUserInfoApi();
       // 再写入用户信息：username 记录邮箱，roles 适配模板的角色数组机制，
-      // permissions 按 role 从 ROLE_PERMISSIONS 映射推导（按钮级权限）
+      // permissions 按 role 从 ROLE_PERMISSIONS 映射推导（按钮级权限），
+      // avatar 由 avatarKey 经 buildAssetUrl 拼成公网 URL（无头像存空串）
       setToken({
         ...tokenInfo,
         expires,
         id: userInfo.id,
         username: userInfo.email,
         nickname: userInfo.nickname,
+        avatar: userInfo.avatarKey
+          ? buildAssetUrl("image", userInfo.avatarKey)
+          : "",
         roles: [userInfo.role],
         permissions: getPermsByRole(userInfo.role)
       });
       return userInfo;
+    },
+    /**
+     * 资料更新后同步登录态（`PATCH /v1/users/me`成功后调用）：
+     * 更新 store 的昵称/头像并持久化到本地`user-info`，导航栏立即刷新
+     */
+    syncProfile(userInfo: UserInfoResult) {
+      const avatar = userInfo.avatarKey
+        ? buildAssetUrl("image", userInfo.avatarKey)
+        : "";
+      this.nickname = userInfo.nickname;
+      this.avatar = avatar;
+      const data = storageLocal().getItem<DataInfo<number>>(userKey);
+      if (data) {
+        storageLocal().setItem(userKey, {
+          ...data,
+          nickname: userInfo.nickname,
+          avatar
+        });
+      }
     },
     /**
      * 退出登录：先调`POST /v1/auth/logout`让服务端吊销`refreshToken`

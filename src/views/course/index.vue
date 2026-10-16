@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
 import type { LessonNode, Track, UnitNode } from "@/api/admin";
 import { deleteLessonApi, deleteUnitApi, getTreeApi } from "@/api/admin";
+import { buildAssetUrl } from "@/api/upload";
 import { trackLabel, trackOptions } from "./utils";
 import UnitFormDialog from "./components/UnitFormDialog.vue";
 import LessonFormDialog from "./components/LessonFormDialog.vue";
@@ -42,6 +43,18 @@ const handleTrackChange = () => {
 /** 区分单元节点与课程节点（单元有 lessons 字段） */
 const isUnitNode = (data: UnitNode | LessonNode): data is UnitNode =>
   "lessons" in data;
+
+/** 封面加载失败的 key 集合（静默隐藏缩略图，不出现破图占位） */
+const hiddenCovers = reactive(new Set<string>());
+
+/** 单元封面缩略图地址（无 key 返回空串） */
+const coverUrl = (unit: UnitNode): string =>
+  buildAssetUrl("image", unit.coverKey ?? "");
+
+/** 封面加载失败：记录 key 并隐藏对应 img */
+const handleCoverError = (key: string | null) => {
+  if (key) hiddenCovers.add(key);
+};
 
 /** 当前选中课程 id（空串 = 未选中） */
 const selectedLessonId = ref("");
@@ -191,6 +204,13 @@ const handleVersionChanged = () => {
               <div class="tree-node">
                 <template v-if="isUnitNode(data)">
                   <span class="node-text">
+                    <img
+                      v-if="data.coverKey && !hiddenCovers.has(data.coverKey)"
+                      :src="coverUrl(data)"
+                      class="unit-cover"
+                      alt=""
+                      @error="handleCoverError(data.coverKey)"
+                    />
                     <el-tag size="small" class="mr-1">
                       {{ trackLabel(data.track) }}
                     </el-tag>
@@ -333,6 +353,15 @@ const handleVersionChanged = () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.unit-cover {
+  width: 24px;
+  height: 24px;
+  margin-right: 6px;
+  vertical-align: middle;
+  object-fit: cover;
+  border-radius: 4px;
 }
 
 .lesson-min {

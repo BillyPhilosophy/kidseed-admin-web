@@ -26,8 +26,8 @@ export interface TokenResult {
   refreshToken: string;
 }
 
-/** 平台角色：`PARENT`-家长、`ADMIN`-管理员 */
-export type UserRole = "PARENT" | "ADMIN";
+/** 平台角色：`PARENT`-家长、`EDITOR`-内容编辑、`ADMIN`-管理员 */
+export type UserRole = "PARENT" | "EDITOR" | "ADMIN";
 
 /** 当前用户的孩子档案（`GET /v1/users/me`返回的`children`数组元素） */
 export interface ChildProfile {

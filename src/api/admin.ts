@@ -1,4 +1,5 @@
 import { http } from "@/utils/http";
+import type { UserRole } from "@/api/user";
 
 /**
  * 管理后台业务 API 层（前缀均为 `/v1/admin`，需 ADMIN 角色，路由守卫已保证）
@@ -292,4 +293,59 @@ export const ttsAuditionApi = (data: AuditionParams) => {
 /** LLM 连通性自检（永远 200） */
 export const llmPingApi = () => {
   return http.request<LlmPingResult>("get", "/v1/admin/llm/ping");
+};
+
+/* ============================== 用户管理（仅 ADMIN） ============================== */
+
+/** 用户管理列表项（`GET /v1/admin/users` 返回的数组元素） */
+export interface AdminUserItem {
+  /** 用户 id（uuid） */
+  id: string;
+  /** 邮箱 */
+  email: string;
+  /** 昵称 */
+  nickname: string;
+  /** 平台角色 */
+  role: UserRole;
+  /** 注册时间 */
+  createdAt: string;
+  /** 关联统计 */
+  _count: {
+    /** 孩子档案数 */
+    children: number;
+  };
+}
+
+/** 修改用户角色返回（`PATCH /v1/admin/users/:id/role`） */
+export interface UpdateUserRoleResult {
+  /** 用户 id（uuid） */
+  id: string;
+  /** 邮箱 */
+  email: string;
+  /** 昵称 */
+  nickname: string;
+  /** 修改后的角色 */
+  role: UserRole;
+}
+
+/** 用户列表（按 createdAt 降序，最多 50 条；keyword 匹配邮箱/昵称，省略 = 全量） */
+export const getAdminUsersApi = (keyword?: string) => {
+  return http.request<AdminUserItem[]>("get", "/v1/admin/users", {
+    params: keyword ? { keyword } : {}
+  });
+};
+
+/**
+ * 修改用户角色
+ * 成功副作用：该用户所有 token 被吊销，需重新登录
+ * 404=用户不存在；400=不能修改自己的角色 / role 非法
+ */
+export const updateUserRoleApi = (id: string, role: UserRole) => {
+  return http.request<UpdateUserRoleResult>(
+    "patch",
+    `/v1/admin/users/${id}/role`,
+    {
+      data: { role }
+    }
+  );
 };

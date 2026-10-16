@@ -149,8 +149,8 @@ router.beforeEach((to: ToRouteType, _from, next) => {
     whiteList.includes(to.fullPath) ? next(_from.fullPath) : next();
   }
   if (Cookies.get(multipleTabsKey) && userInfo) {
-    // 本项目为单角色管理后台：登录态中不含 ADMIN 角色时，清空登录态、回登录页并提示
-    if (!userInfo.roles?.includes("ADMIN")) {
+    // 管理后台仅 ADMIN / EDITOR 可进入：登录态中两者都不含时，清空登录态、回登录页并提示
+    if (!isOneOfArray(["ADMIN", "EDITOR"], userInfo.roles ?? [])) {
       message("该账号无管理后台权限", { type: "error" });
       removeToken();
       next({ path: "/login" });

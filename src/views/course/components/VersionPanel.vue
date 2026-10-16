@@ -273,17 +273,32 @@ const handleRollback = async (version: VersionDetail) => {
               <el-button link @click="openPreview(row)">预览</el-button>
             </template>
             <template v-else-if="row.status === 'REVIEWING'">
-              <el-button link type="danger" @click="openReject(row)">
+              <el-button
+                v-perms="'version:reject'"
+                link
+                type="danger"
+                @click="openReject(row)"
+              >
                 打回
               </el-button>
-              <el-button link type="success" @click="handlePublish(row)">
+              <el-button
+                v-perms="'version:publish'"
+                link
+                type="success"
+                @click="handlePublish(row)"
+              >
                 发布
               </el-button>
               <el-button link @click="openPreview(row)">预览</el-button>
             </template>
             <template v-else>
               <el-button link @click="openPreview(row)">预览</el-button>
-              <el-button link type="warning" @click="handleRollback(row)">
+              <el-button
+                v-perms="'version:rollback'"
+                link
+                type="warning"
+                @click="handleRollback(row)"
+              >
                 回滚到此版本
               </el-button>
             </template>

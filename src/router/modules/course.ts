@@ -17,8 +17,8 @@ export default {
       component: () => import("@/views/course/index.vue"),
       meta: {
         title: "课程管理",
-        // 单角色管理后台：仅 ADMIN 可见可访问
-        roles: ["ADMIN"]
+        // ADMIN 与 EDITOR 可见可访问（EDITOR 能编辑不能发布，按钮级权限另行控制）
+        roles: ["ADMIN", "EDITOR"]
       }
     }
   ]

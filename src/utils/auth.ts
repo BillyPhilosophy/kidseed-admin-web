@@ -9,6 +9,8 @@ export interface DataInfo<T> {
   expires: T;
   /** 用于调用刷新accessToken的接口时所需的token */
   refreshToken: string;
+  /** 当前登录用户`id`（uuid） */
+  id?: string;
   /** 头像 */
   avatar?: string;
   /** 用户名 */
@@ -68,7 +70,8 @@ export function setToken(data: DataInfo<Date>) {
       : {}
   );
 
-  function setUserKey({ avatar, username, nickname, roles, permissions }) {
+  function setUserKey({ id, avatar, username, nickname, roles, permissions }) {
+    useUserStoreHook().SET_ID(id);
     useUserStoreHook().SET_AVATAR(avatar);
     useUserStoreHook().SET_USERNAME(username);
     useUserStoreHook().SET_NICKNAME(nickname);
@@ -77,6 +80,7 @@ export function setToken(data: DataInfo<Date>) {
     storageLocal().setItem(userKey, {
       refreshToken,
       expires,
+      id,
       avatar,
       username,
       nickname,
@@ -88,6 +92,7 @@ export function setToken(data: DataInfo<Date>) {
   if (data.username && data.roles) {
     const { username, roles } = data;
     setUserKey({
+      id: data?.id ?? "",
       avatar: data?.avatar ?? "",
       username,
       nickname: data?.nickname ?? "",
@@ -95,6 +100,7 @@ export function setToken(data: DataInfo<Date>) {
       permissions: data?.permissions ?? []
     });
   } else {
+    const id = storageLocal().getItem<DataInfo<number>>(userKey)?.id ?? "";
     const avatar =
       storageLocal().getItem<DataInfo<number>>(userKey)?.avatar ?? "";
     const username =
@@ -106,6 +112,7 @@ export function setToken(data: DataInfo<Date>) {
     const permissions =
       storageLocal().getItem<DataInfo<number>>(userKey)?.permissions ?? [];
     setUserKey({
+      id,
       avatar,
       username,
       nickname,

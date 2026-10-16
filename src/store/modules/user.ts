@@ -18,6 +18,7 @@ import {
   getUserInfoApi
 } from "@/api/user";
 import { useMultiTagsStoreHook } from "./multiTags";
+import { getPermsByRole } from "@/constants/perms";
 import { type DataInfo, setToken, removeToken, userKey } from "@/utils/auth";
 
 /** 后端`accessToken`有效期为 2 小时（后端不下发过期时间，本地据此推算） */
@@ -25,6 +26,8 @@ const ACCESS_TOKEN_EXPIRES_IN = 2 * 60 * 60 * 1000;
 
 export const useUserStore = defineStore("pure-user", {
   state: (): userType => ({
+    // 当前登录用户 id（uuid，用于用户管理页「不能改自己」比对等场景）
+    id: storageLocal().getItem<DataInfo<number>>(userKey)?.id ?? "",
     // 头像
     avatar: storageLocal().getItem<DataInfo<number>>(userKey)?.avatar ?? "",
     // 用户名（记录登录邮箱）
@@ -42,6 +45,10 @@ export const useUserStore = defineStore("pure-user", {
     loginDay: 7
   }),
   actions: {
+    /** 存储当前登录用户 id */
+    SET_ID(id: string) {
+      this.id = id;
+    },
     /** 存储头像 */
     SET_AVATAR(avatar: string) {
       this.avatar = avatar;
@@ -80,14 +87,16 @@ export const useUserStore = defineStore("pure-user", {
       // 先持久化令牌，保证拉取用户信息时请求能携带 Authorization
       setToken({ ...tokenInfo, expires });
       const userInfo = await getUserInfoApi();
-      // 再写入用户信息：username 记录邮箱，roles 适配模板的角色数组机制
+      // 再写入用户信息：username 记录邮箱，roles 适配模板的角色数组机制，
+      // permissions 按 role 从 ROLE_PERMISSIONS 映射推导（按钮级权限）
       setToken({
         ...tokenInfo,
         expires,
+        id: userInfo.id,
         username: userInfo.email,
         nickname: userInfo.nickname,
         roles: [userInfo.role],
-        permissions: []
+        permissions: getPermsByRole(userInfo.role)
       });
       return userInfo;
     },
@@ -106,6 +115,7 @@ export const useUserStore = defineStore("pure-user", {
     },
     /** 清空本地登录态并回登录页（退出登录、刷新令牌失效时共用） */
     clearLoginState() {
+      this.id = "";
       this.avatar = "";
       this.username = "";
       this.nickname = "";

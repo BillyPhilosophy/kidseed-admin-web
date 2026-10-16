@@ -5,6 +5,7 @@ import { message } from "@/utils/message";
 import type { Track, UnitNode } from "@/api/admin";
 import { createUnitApi, updateUnitApi } from "@/api/admin";
 import { trackOptions } from "../utils";
+import CoverUpload from "./CoverUpload.vue";
 
 /** 单元新建/编辑弹窗：unit 为 null 时是新建，否则是编辑 */
 const props = defineProps<{
@@ -144,11 +145,15 @@ const handleSubmit = async () => {
           step-strictly
         />
       </el-form-item>
-      <el-form-item label="封面 Key">
-        <el-input
-          v-model="form.coverKey"
-          placeholder="MinIO key，后续接入上传"
-        />
+      <el-form-item label="封面">
+        <div class="cover-field">
+          <CoverUpload v-model="form.coverKey" />
+          <el-input
+            v-model="form.coverKey"
+            size="small"
+            placeholder="也可直接粘贴已有 MinIO key"
+          />
+        </div>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -159,3 +164,12 @@ const handleSubmit = async () => {
     </template>
   </el-dialog>
 </template>
+
+<style scoped>
+.cover-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+</style>

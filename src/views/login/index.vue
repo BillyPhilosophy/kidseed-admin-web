@@ -52,8 +52,8 @@ const onLogin = async (formEl: FormInstance | undefined) => {
           password: ruleForm.password
         })
         .then(userInfo => {
-          // 单角色管理后台：非管理员账号直接清登录态并提示（路由守卫同样兜底拦截）
-          if (userInfo.role !== "ADMIN") {
+          // 管理后台仅 ADMIN / EDITOR 可进入：其他角色直接清登录态并提示（路由守卫同样兜底拦截）
+          if (!["ADMIN", "EDITOR"].includes(userInfo.role)) {
             message("该账号无管理后台权限", { type: "error" });
             useUserStoreHook().logOut();
             return;

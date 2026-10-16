@@ -62,6 +62,8 @@ interface WheelEvent {
 interface ImportMetaEnv extends ViteEnv {
   /** API 基础地址：生产环境完整 URL（如 `https://api.twilightknight.space`），开发环境留空走同源代理 */
   VITE_API_BASE: string;
+  /** MinIO 公网访问地址（图片/音频资源 URL 前缀，生产 `https://minio.twilightknight.space`，本地开发 `http://localhost:9000`） */
+  VITE_MINIO_PUBLIC: string;
   __: unknown;
 }
 

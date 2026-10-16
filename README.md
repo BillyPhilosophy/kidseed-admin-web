@@ -4,9 +4,11 @@ kidseed 儿童学习平台的管理后台。基于 [pure-admin-thin](https://git
 
 ## 功能现状
 
-- **登录鉴权**：邮箱 + 密码登录，双 token（access/refresh）自动刷新；仅 `ADMIN` 角色可访问，其他角色登录后跳 403
-- **课程树管理**：单元 / 课程 CRUD，课程内容版本管理（草稿 → 提交 → 审核 / 发布 → 回滚的状态机操作）
-- **工具箱**：TTS 试听、LLM 连通性自检
+- **登录鉴权**：邮箱 + 密码登录，双 token（access/refresh）自动刷新；`ADMIN` / `EDITOR` 角色可访问，`PARENT` 登录提示无权限
+- **RBAC 权限**：`EDITOR`（内容编辑）可管理课程树与版本、送审、试听；**发布 / 打回 / 回滚仅 `ADMIN`**（按钮按 `v-perms` 不渲染，后端 Guard 双重拦截 403）；role → permissions 映射见 `src/constants/perms.ts`
+- **用户管理**（仅 ADMIN）：`/users` 用户列表检索、在线修改角色（修改后对方登录状态失效需重登，不能改自己）
+- **课程树管理**：单元 / 课程 CRUD，单元封面上传（presign → PUT 直传 MinIO）、课程树缩略图预览；课程内容版本管理（草稿 → 提交 → 审核 / 发布 → 回滚的状态机操作）
+- **工具箱**（仅 ADMIN）：TTS 试听、LLM 连通性自检
 
 ## 本地开发
 
@@ -22,7 +24,7 @@ pnpm dev
 
 开发服务器端口 `8848`，`/v1` 请求由 vite proxy 转发到 `http://localhost:3000`（见 `vite.config.ts`），无需处理跨域。
 
-登录账号需要先在 API 侧注册，再用 kidseed-api 仓库的 `scripts/promote-admin.js` 把账号提升为 `ADMIN`，否则登录后只能看到 403。
+登录账号需要先在 API 侧注册。**首个管理员**用 kidseed-api 仓库的 `scripts/promote-admin.js` 提升；之后的角色变更直接在后台 `/users` 页面操作（或调 `PATCH /v1/admin/users/:id/role`，仅 ADMIN）。
 
 ## 构建
 
@@ -51,7 +53,9 @@ push 到 `main`（或 Actions 页手动触发）→ 安装依赖 → `pnpm typec
 
 ### openresty（1Panel）侧配置
 
-站点配置里加 SPA history 路由回退，否则刷新非首页路径会 404：
+当前生产构建为 **hash 路由模式**（`.env.production` 的 `VITE_ROUTER_HISTORY = "hash"`，URL 形如 `/#/course`），hash 部分不发送到服务器，**无需任何 rewrite 配置**，任意路径刷新都不会 404。
+
+若以后想换成干净的 h5 history 模式（改成 `"h5"`），则必须在站点配置加 SPA 回退，否则刷新非首页路径会 404：
 
 ```nginx
 location / {
@@ -66,8 +70,10 @@ location / {
 
 ## 目录结构
 
-- `src/api` — 后端接口封装（`admin.ts` 管理端接口、`user.ts` 登录 / 用户信息），页面只从这里调接口
-- `src/views/course` — 课程树管理页（单元 / 课程表单、版本内容与预览等弹窗组件）
-- `src/views/tools` — 工具箱页（TTS 试听、LLM 自检）
-- `src/router/modules` — 路由模块（`course.ts`、`tools.ts`、`home.ts` 等，`roles: ["ADMIN"]` 控制可见可访问）
+- `src/api` — 后端接口封装（`admin.ts` 管理端接口、`user.ts` 登录 / 用户信息、`upload.ts` 媒体预签名与 MinIO 直传），页面只从这里调接口
+- `src/views/course` — 课程树管理页（单元 / 课程表单、`CoverUpload` 封面上传、版本内容与预览等弹窗组件）
+- `src/views/users` — 用户管理页（仅 ADMIN，在线修改角色）
+- `src/views/tools` — 工具箱页（TTS 试听、LLM 自检，仅 ADMIN）
+- `src/router/modules` — 路由模块（`course.ts`、`tools.ts`、`users.ts`、`home.ts` 等，`meta.roles` 控制可见可访问）
+- `src/constants/perms.ts` — role → permissions 映射（按钮级 `v-perms` 的数据源）
 - `src/utils/http` — axios 封装（token 注入、401 单飞刷新重放、NestJS 错误信息归一化）

@@ -147,14 +147,29 @@ export interface SoundscapeMeta {
   rps: number;
 }
 
+/** TTS 引擎提供方（音色即路由：试听请求只传音色 id，后端按 provider 自动路由） */
+export type TtsProvider = "qwen" | "edge-tts";
+
+/** TTS 引擎可用性（`GET /tools/tts/voices` 响应 `providers` 数组元素） */
+export interface TtsProviderInfo {
+  /** 引擎提供方 id */
+  id: TtsProvider;
+  /** 是否可用（false 时对应音色在下拉中置灰禁用） */
+  available: boolean;
+  /** 不可用原因（如未配置 API Key） */
+  reason?: string;
+}
+
 /** TTS 音色目录项（`GET /tools/tts/voices` 响应 `voices` 数组元素） */
 export interface TtsVoiceInfo {
   /** 逻辑角色 id（试听请求的 voice 字段用它） */
   id: string;
-  /** 合成引擎（qwen3-tts-flash / qwen-audio-3.1-tts-flash 等） */
+  /** 引擎提供方 */
+  provider: TtsProvider;
+  /** 合成引擎（qwen3-tts-flash / qwen-audio-3.1-tts-flash / edge-tts 等） */
   engine: string;
-  /** 引擎侧发音人名 */
-  qwenVoice: string;
+  /** 该引擎下的实际发音人名 */
+  engineVoice: string;
   /** 角色显示名 */
   name: string;
   /** 性别（female/male 等） */
@@ -179,6 +194,8 @@ export interface TtsVoicesResult {
   voices: TtsVoiceInfo[];
   /** 主要角色 id 列表 */
   primaryIds: string[];
+  /** 引擎可用性列表 */
+  providers: TtsProviderInfo[];
   /** 场景声引擎能力元信息 */
   soundscape: SoundscapeMeta;
 }

@@ -5,6 +5,7 @@ import type {
   AuditionResult,
   LlmPingResult,
   SoundscapeResult,
+  TtsProviderInfo,
   TtsVoiceInfo,
   TtsVoicesResult
 } from "@/api/admin";
@@ -17,7 +18,7 @@ import {
 
 defineOptions({ name: "ToolsIndex" });
 
-/** 工具箱：TTS 语音试听 + 场景声生成 + LLM 连通性自检 */
+/** 工具箱：TTS 语音试听 + 场景声生成 + LLM 连通性自检（音色即路由，多引擎共存） */
 
 /* ---------------- 音色目录 ---------------- */
 
@@ -51,6 +52,46 @@ onMounted(loadVoices);
 const primaryVoices = computed(
   () => catalog.value?.voices.filter(v => v.primary) ?? []
 );
+
+/** qwen 音色（非主要角色） */
+const qwenVoices = computed(
+  () =>
+    catalog.value?.voices.filter(v => v.provider === "qwen" && !v.primary) ?? []
+);
+
+/** edge-tts 音色（契约约定 primary 全为 false，仍过滤兜底） */
+const edgeVoices = computed(
+  () =>
+    catalog.value?.voices.filter(
+      v => v.provider === "edge-tts" && !v.primary
+    ) ?? []
+);
+
+/* ---------------- 引擎可用性 ---------------- */
+
+/** 引擎可用性映射（目录里缺失某引擎条目时按可用处理） */
+const providerMap = computed<Record<string, TtsProviderInfo>>(() => {
+  const map: Record<string, TtsProviderInfo> = {};
+  catalog.value?.providers.forEach(p => {
+    map[p.id] = p;
+  });
+  return map;
+});
+
+const providerAvailable = (provider: string) =>
+  providerMap.value[provider]?.available ?? true;
+
+const providerReason = (provider: string) =>
+  providerMap.value[provider]?.reason ?? "";
+
+/** 场景声走 qwen 引擎，qwen 不可用时整卡提示并禁用 */
+const qwenAvailable = computed(() => providerAvailable("qwen"));
+
+/** 下拉分组标签：引擎不可用时在组名旁标注原因 */
+const groupLabel = (name: string, provider: string) =>
+  providerAvailable(provider)
+    ? name
+    : `${name}（不可用：${providerReason(provider) || "未配置"}）`;
 
 const selectedVoice = computed<TtsVoiceInfo | null>(() => {
   if (!catalog.value || !ttsForm.voice) return null;
@@ -94,6 +135,13 @@ const handleAudition = async () => {
     message("请选择音色", { type: "warning" });
     return;
   }
+  if (selectedVoice.value && !providerAvailable(selectedVoice.value.provider)) {
+    message(
+      `引擎 ${selectedVoice.value.provider} 当前不可用：${providerReason(selectedVoice.value.provider) || "未配置"}`,
+      { type: "warning" }
+    );
+    return;
+  }
   ttsLoading.value = true;
   auditionResult.value = null;
   try {
@@ -127,6 +175,10 @@ const maxPromptChars = computed(
 const maxSeconds = computed(() => catalog.value?.soundscape.maxSeconds ?? 120);
 
 const handleSoundscape = async () => {
+  if (!qwenAvailable.value) {
+    message("qwen 引擎当前不可用，无法生成场景声", { type: "warning" });
+    return;
+  }
   const prompt = soundscapePrompt.value.trim();
   if (!prompt) {
     message("请输入场景描述", { type: "warning" });
@@ -178,10 +230,43 @@ const formatBytes = (bytes: number) => {
 /** 角色目录表格：主要角色行高亮 */
 const voiceRowClassName = ({ row }: { row: TtsVoiceInfo }) =>
   row.primary ? "primary-voice-row" : "";
+
+/** 引擎列合并显示文案（provider · engine） */
+const engineText = (v: TtsVoiceInfo) => `${v.provider} · ${v.engine}`;
+
+/** 角色目录表格：引擎列筛选项（按 provider · engine 组合去重） */
+const engineFilters = computed(() => {
+  const combos = new Set<string>();
+  catalog.value?.voices.forEach(v => combos.add(engineText(v)));
+  return [...combos].map(c => ({ text: c, value: c }));
+});
+
+const engineFilterMethod = (value: string, row: TtsVoiceInfo) =>
+  engineText(row) === value;
 </script>
 
 <template>
   <div class="tools-page p-4">
+    <!-- 引擎状态指示 -->
+    <div v-if="catalog" class="provider-status">
+      <span class="provider-status-label">引擎状态：</span>
+      <template v-for="p in catalog.providers" :key="p.id">
+        <el-tooltip
+          :disabled="p.available"
+          :content="p.reason || '不可用'"
+          placement="top"
+        >
+          <el-tag
+            size="small"
+            :type="p.available ? 'success' : 'info'"
+            :effect="p.available ? 'light' : 'plain'"
+          >
+            {{ p.id }} {{ p.available ? "✓" : "✗" }}
+          </el-tag>
+        </el-tooltip>
+      </template>
+    </div>
+
     <el-row :gutter="16">
       <!-- TTS 语音试听 -->
       <el-col :xs="24" :lg="12">
@@ -213,29 +298,83 @@ const voiceRowClassName = ({ row }: { row: TtsVoiceInfo }) =>
                     <el-option
                       v-for="v in primaryVoices"
                       :key="v.id"
-                      :label="`${v.name}（${v.qwenVoice}）`"
+                      :label="`${v.name}（${v.engineVoice}）`"
                       :value="v.id"
+                      :disabled="!providerAvailable(v.provider)"
                     >
                       <div class="voice-option">
-                        <span>{{ v.name }}（{{ v.qwenVoice }}）</span>
-                        <el-tag size="small" effect="plain" type="warning">
-                          {{ v.engine }}
-                        </el-tag>
+                        <span>{{ v.name }}（{{ v.engineVoice }}）</span>
+                        <span class="voice-badges">
+                          <el-tag
+                            v-if="v.provider !== v.engine"
+                            size="small"
+                            effect="plain"
+                            type="info"
+                          >
+                            {{ v.provider }}
+                          </el-tag>
+                          <el-tag size="small" effect="plain" type="warning">
+                            {{ v.engine }}
+                          </el-tag>
+                        </span>
                       </div>
                     </el-option>
                   </el-option-group>
-                  <el-option-group label="全部音色">
+                  <el-option-group
+                    v-if="qwenVoices.length"
+                    :label="groupLabel('qwen 音色', 'qwen')"
+                  >
                     <el-option
-                      v-for="v in catalog.voices"
+                      v-for="v in qwenVoices"
                       :key="v.id"
-                      :label="`${v.name}（${v.qwenVoice}）`"
+                      :label="`${v.name}（${v.engineVoice}）`"
                       :value="v.id"
+                      :disabled="!qwenAvailable"
                     >
                       <div class="voice-option">
-                        <span>{{ v.name }}（{{ v.qwenVoice }}）</span>
-                        <el-tag size="small" effect="plain">
-                          {{ v.engine }}
-                        </el-tag>
+                        <span>{{ v.name }}（{{ v.engineVoice }}）</span>
+                        <span class="voice-badges">
+                          <el-tag
+                            v-if="v.provider !== v.engine"
+                            size="small"
+                            effect="plain"
+                            type="info"
+                          >
+                            {{ v.provider }}
+                          </el-tag>
+                          <el-tag size="small" effect="plain">
+                            {{ v.engine }}
+                          </el-tag>
+                        </span>
+                      </div>
+                    </el-option>
+                  </el-option-group>
+                  <el-option-group
+                    v-if="edgeVoices.length"
+                    :label="groupLabel('edge-tts 音色', 'edge-tts')"
+                  >
+                    <el-option
+                      v-for="v in edgeVoices"
+                      :key="v.id"
+                      :label="`${v.name}（${v.engineVoice}）`"
+                      :value="v.id"
+                      :disabled="!providerAvailable('edge-tts')"
+                    >
+                      <div class="voice-option">
+                        <span>{{ v.name }}（{{ v.engineVoice }}）</span>
+                        <span class="voice-badges">
+                          <el-tag
+                            v-if="v.provider !== v.engine"
+                            size="small"
+                            effect="plain"
+                            type="info"
+                          >
+                            {{ v.provider }}
+                          </el-tag>
+                          <el-tag size="small" effect="plain">
+                            {{ v.engine }}
+                          </el-tag>
+                        </span>
                       </div>
                     </el-option>
                   </el-option-group>
@@ -343,6 +482,17 @@ const voiceRowClassName = ({ row }: { row: TtsVoiceInfo }) =>
         <div class="right-stack">
           <el-card shadow="never">
             <template #header>场景声</template>
+
+            <!-- 场景声依赖 qwen 引擎，qwen 不可用时整卡提示并禁用 -->
+            <el-alert
+              v-if="catalog && !qwenAvailable"
+              class="mb-3"
+              type="warning"
+              :closable="false"
+              title="场景声暂不可用"
+              :description="providerReason('qwen') || '未配置 QWEN_TTS_API_KEY'"
+            />
+
             <el-form label-position="top">
               <el-form-item label="场景描述">
                 <el-input
@@ -351,6 +501,7 @@ const voiceRowClassName = ({ row }: { row: TtsVoiceInfo }) =>
                   :rows="4"
                   :maxlength="maxPromptChars"
                   show-word-limit
+                  :disabled="!qwenAvailable"
                   placeholder="森林清晨的环境音：鸟儿清脆鸣叫，微风拂过树叶，远处有溪流声。纯环境音，无人声。时长约10秒。"
                 />
               </el-form-item>
@@ -363,6 +514,7 @@ const voiceRowClassName = ({ row }: { row: TtsVoiceInfo }) =>
               <el-button
                 type="primary"
                 :loading="soundscapeLoading"
+                :disabled="!qwenAvailable"
                 loading-text="生成中（约15-30秒）"
                 @click="handleSoundscape"
               >
@@ -441,7 +593,30 @@ const voiceRowClassName = ({ row }: { row: TtsVoiceInfo }) =>
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="engine" label="引擎" min-width="180" />
+                <el-table-column
+                  label="引擎"
+                  min-width="210"
+                  :filters="engineFilters"
+                  :filter-method="engineFilterMethod"
+                >
+                  <template #default="{ row }: { row: TtsVoiceInfo }">
+                    {{ engineText(row) }}
+                    <el-tag
+                      v-if="!providerAvailable(row.provider)"
+                      class="ml-1"
+                      size="small"
+                      type="info"
+                      effect="plain"
+                    >
+                      不可用
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="发音人" min-width="110">
+                  <template #default="{ row }: { row: TtsVoiceInfo }">
+                    {{ row.engineVoice }}
+                  </template>
+                </el-table-column>
                 <el-table-column label="性别/年龄" width="100">
                   <template #default="{ row }: { row: TtsVoiceInfo }">
                     {{ genderLabel(row.gender) }} / {{ ageLabel(row.age) }}
@@ -488,6 +663,19 @@ const voiceRowClassName = ({ row }: { row: TtsVoiceInfo }) =>
 </template>
 
 <style scoped>
+.provider-status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.provider-status-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .right-stack {
   display: flex;
   flex-direction: column;
@@ -499,6 +687,13 @@ const voiceRowClassName = ({ row }: { row: TtsVoiceInfo }) =>
   gap: 12px;
   align-items: center;
   justify-content: space-between;
+}
+
+.voice-badges {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  align-items: center;
 }
 
 .voice-detail {
